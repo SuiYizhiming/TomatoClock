@@ -231,7 +231,6 @@ class TimerViewModel(
             return
         }
 
-        timerEngine.stop()
         val completed = stateMachine.transition(
             freshSession.copy(remainingSec = 0),
             TimerEvent.Complete,
