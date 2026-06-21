@@ -28,10 +28,14 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 class TimerViewModel(
     private val timerRepository: TimerRepository,
@@ -52,35 +56,76 @@ class TimerViewModel(
 
     private val stateMutex = Mutex()
 
+    init {
+        // Observe settings changes and update idle timer display
+        viewModelScope.launch {
+            settingsRepository.observeSettings()
+                .map { it.focusDurationMin }
+                .distinctUntilChanged()
+                .collect { focusDurationMin ->
+                    val current = _uiState.value
+                    android.util.Log.d("TimerViewModel", "settings collect: focusDurationMin=$focusDurationMin, status=${current.status}, session=${current.session?.sessionId}")
+                    // Only update if idle (no active session)
+                    if (current.status == TimerStatus.IDLE && current.session == null) {
+                        val durationSec = focusDurationMin * 60
+                        android.util.Log.d("TimerViewModel", "settings collect: updating idle state, durationSec=$durationSec")
+                        _uiState.value = current.copy(
+                            plannedDurationSec = durationSec,
+                            remainingSec = durationSec,
+                        )
+                    }
+                }
+        }
+    }
+
     fun startFocus(taskId: String? = null) {
         viewModelScope.launch {
-            val activeSession = timerRepository.getActiveSession()
-            if (activeSession != null) {
-                restoreActiveSession(activeSession)
-                return@launch
-            }
+            stateMutex.withLock {
+                val activeSession = timerRepository.getActiveSession()
+                android.util.Log.d("TimerViewModel", "startFocus: activeSession=${activeSession?.sessionId}, status=${activeSession?.status}")
+                if (activeSession != null) {
+                    restoreActiveSessionInternal(activeSession)
+                    return@withLock
+                }
 
-            val durationSec = settingsRepository.getSettings().focusDurationMin.toSeconds()
-            val readySession = _uiState.value.session?.takeIf {
-                it.status == TimerStatus.IDLE && it.mode == TimerMode.FOCUS
-            }
-            val session = stateMachine.transition(
-                current = readySession,
-                event = TimerEvent.Start(
-                    mode = TimerMode.FOCUS,
-                    plannedDurationSec = durationSec,
-                    taskId = taskId,
-                ),
-            ) ?: return@launch
+                // Check for existing idle session (could be focus or break)
+                val readySession = _uiState.value.session?.takeIf {
+                    it.status == TimerStatus.IDLE
+                }
+                android.util.Log.d("TimerViewModel", "startFocus: readySession=${readySession?.sessionId}, mode=${readySession?.mode}, plannedDuration=${readySession?.plannedDurationSec}")
 
-            if (readySession == null) {
-                timerRepository.createSession(session)
-            } else {
-                timerRepository.updateSession(session)
+                if (readySession != null) {
+                    // Start the existing idle session (e.g., break session after focus completed)
+                    val session = stateMachine.transition(
+                        current = readySession,
+                        event = TimerEvent.Start(
+                            mode = readySession.mode,
+                            plannedDurationSec = readySession.plannedDurationSec,
+                            taskId = if (readySession.mode == TimerMode.FOCUS) taskId else null,
+                        ),
+                    ) ?: return@withLock
+                    timerRepository.updateSession(session)
+                    appendLog(session, OperationType.START)
+                    publishState(session)
+                    startEngine(session)
+                } else {
+                    // Create new focus session
+                    val durationSec = settingsRepository.getSettings().focusDurationMin.toSeconds()
+                    android.util.Log.d("TimerViewModel", "startFocus: creating new session, durationSec=$durationSec")
+                    val session = stateMachine.transition(
+                        current = null,
+                        event = TimerEvent.Start(
+                            mode = TimerMode.FOCUS,
+                            plannedDurationSec = durationSec,
+                            taskId = taskId,
+                        ),
+                    ) ?: return@withLock
+                    timerRepository.createSession(session)
+                    appendLog(session, OperationType.START)
+                    publishState(session)
+                    startEngine(session)
+                }
             }
-            appendLog(session, OperationType.START)
-            publishState(session)
-            startEngine(session)
         }
     }
 
@@ -100,9 +145,13 @@ class TimerViewModel(
     }
 
     fun confirmReset() {
+        android.util.Log.d("TimerViewModel", "confirmReset called")
         viewModelScope.launch {
             stateMutex.withLock {
-                val session = currentOrActiveSession() ?: return@withLock
+                val session = currentOrActiveSession()
+                android.util.Log.d("TimerViewModel", "confirmReset: session=${session?.sessionId}, status=${session?.status}")
+                if (session == null) return@withLock
+
                 val current = if (session.status == TimerStatus.RUNNING) {
                     session.copy(
                         remainingSec = TimerSessionRestorer.remainingSeconds(
@@ -113,13 +162,24 @@ class TimerViewModel(
                 } else {
                     session
                 }
-                val invalid = stateMachine.transition(current, TimerEvent.Reset()) ?: return@withLock
+                android.util.Log.d("TimerViewModel", "confirmReset: current.status=${current.status}, remainingSec=${current.remainingSec}")
+
+                val invalid = stateMachine.transition(current, TimerEvent.Reset())
+                android.util.Log.d("TimerViewModel", "confirmReset: transition result=${invalid?.status}")
+                if (invalid == null) return@withLock
 
                 timerEngine.stop()
                 timerRepository.updateSession(invalid)
                 appendLog(invalid, OperationType.RESET)
-                // Clear UI state to clean idle - don't keep invalid session in UI
-                _uiState.value = TimerUiState()
+                // Reset to idle state with latest settings duration
+                val settings = settingsRepository.getSettings()
+                val durationSec = settings.focusDurationMin * 60
+                android.util.Log.d("TimerViewModel", "confirmReset: focusDurationMin=${settings.focusDurationMin}, durationSec=$durationSec")
+                _uiState.value = TimerUiState(
+                    mode = TimerMode.FOCUS,
+                    plannedDurationSec = durationSec,
+                    remainingSec = durationSec,
+                )
             }
         }
     }
@@ -145,12 +205,22 @@ class TimerViewModel(
 
     fun restoreLatestSession() {
         viewModelScope.launch {
-            val activeSession = timerRepository.getActiveSession()
-            if (activeSession == null) {
-                _uiState.value = TimerUiState()
-                return@launch
+            stateMutex.withLock {
+                val activeSession = timerRepository.getActiveSession()
+                android.util.Log.d("TimerViewModel", "restoreLatestSession: activeSession=${activeSession?.sessionId}, status=${activeSession?.status}")
+                if (activeSession == null) {
+                    val settings = settingsRepository.getSettings()
+                    val durationSec = settings.focusDurationMin * 60
+                    android.util.Log.d("TimerViewModel", "restoreLatestSession: setting idle state, focusDurationMin=${settings.focusDurationMin}, durationSec=$durationSec")
+                    _uiState.value = TimerUiState(
+                        mode = TimerMode.FOCUS,
+                        plannedDurationSec = durationSec,
+                        remainingSec = durationSec,
+                    )
+                    return@withLock
+                }
+                restoreActiveSessionInternal(activeSession)
             }
-            restoreActiveSession(activeSession)
         }
     }
 
@@ -159,7 +229,10 @@ class TimerViewModel(
         super.onCleared()
     }
 
-    private suspend fun restoreActiveSession(session: TimerSession) {
+    /**
+     * Restore active session - must be called while holding stateMutex.
+     */
+    private suspend fun restoreActiveSessionInternal(session: TimerSession) {
         if (session.status == TimerStatus.PAUSED) {
             timerRepository.appendLog(operationLog(session, OperationType.RESTORE))
             publishState(session)
@@ -174,7 +247,7 @@ class TimerViewModel(
         timerRepository.appendLog(operationLog(restored, OperationType.RESTORE))
         publishState(restored)
         if (restored.remainingSec <= 0) {
-            finishSession(restored)
+            finishSessionInternal(restored)
         } else {
             startEngine(restored)
         }
@@ -219,39 +292,80 @@ class TimerViewModel(
             timerRepository.updateSession(ticked)
             publishState(ticked)
             if (remainingSec <= 0) {
-                finishSession(ticked)
+                finishSessionInternal(ticked)
             }
         }
     }
 
     private suspend fun finishCurrentSession() {
-        val session = _uiState.value.session ?: timerRepository.getActiveSession() ?: return
-        finishSession(session)
+        stateMutex.withLock {
+            val session = _uiState.value.session ?: timerRepository.getActiveSession() ?: return
+            finishSessionInternal(session)
+        }
     }
 
     private suspend fun finishSession(session: TimerSession) {
         stateMutex.withLock {
-            val freshSession = timerRepository.findSession(session.sessionId) ?: session
-            if (freshSession.status == TimerStatus.COMPLETED || freshSession.status == TimerStatus.INVALID) {
-                return
-            }
+            finishSessionInternal(session)
+        }
+    }
 
+    /**
+     * Internal finish logic - must be called while holding stateMutex.
+     *
+     * NOTE: This may be invoked from inside the timer engine's own coroutine (e.g. via
+     * handleTick -> finishSessionInternal). Calling timerEngine.stop() cancels that very
+     * coroutine, which would make every subsequent suspend call throw CancellationException.
+     * To keep the finish flow (DB update, alert, event emit, next-cycle setup) atomic, all
+     * work after timerEngine.stop() runs under NonCancellable.
+     */
+    private suspend fun finishSessionInternal(session: TimerSession) {
+        val freshSession = timerRepository.findSession(session.sessionId) ?: session
+        if (freshSession.status == TimerStatus.COMPLETED || freshSession.status == TimerStatus.INVALID) {
+            return
+        }
+
+        timerEngine.stop()
+
+        withContext(NonCancellable) {
             val completed = stateMachine.transition(
                 freshSession.copy(remainingSec = 0),
                 TimerEvent.Complete,
-            ) ?: return
+            ) ?: return@withContext
 
             timerRepository.updateSession(completed)
             appendLog(completed, OperationType.COMPLETE)
-            alertManager.notifyFinish(completed.mode)
-            _effects.emit(TimerEffect.TimerFinished(completed.mode))
             publishState(completed)
 
-            when (completed.mode) {
-                TimerMode.FOCUS -> completeFocus(completed)
-                TimerMode.SHORT_BREAK,
-                TimerMode.LONG_BREAK,
-                -> completeBreak(completed)
+            // Trigger alert (non-critical, catch exceptions)
+            runCatching { alertManager.notifyFinish(completed.mode) }
+            runCatching { _effects.emit(TimerEffect.TimerFinished(completed.mode)) }
+
+            // Transition to next state (critical - must not fail)
+            try {
+                when (completed.mode) {
+                    TimerMode.FOCUS -> completeFocus(completed)
+                    TimerMode.SHORT_BREAK,
+                    TimerMode.LONG_BREAK,
+                    -> completeBreak(completed)
+                }
+            } catch (e: Exception) {
+                // If transition fails, create a basic idle session so user can continue
+                val fallbackSession = TimerSession(
+                    sessionId = idGenerator.nextId(),
+                    taskId = null,
+                    mode = TimerMode.FOCUS,
+                    plannedDurationSec = completed.plannedDurationSec,
+                    remainingSec = completed.plannedDurationSec,
+                    status = TimerStatus.IDLE,
+                    startAt = clock.elapsedRealtimeMillis(),
+                    pauseAt = null,
+                    completedAt = null,
+                    resetAt = null,
+                    invalidReason = null,
+                )
+                timerRepository.createSession(fallbackSession)
+                publishState(fallbackSession)
             }
         }
     }
@@ -263,26 +377,42 @@ class TimerViewModel(
             durationSeconds = completed.plannedDurationSec,
             completedAt = completed.completedAt ?: clock.wallTimeMillis(),
         )
-        focusCompletedEventSink.emit(event)
-        _effects.emit(TimerEffect.FocusCompleted(event))
+        // Non-critical: archive focus record
+        runCatching { focusCompletedEventSink.emit(event) }
+        runCatching { _effects.emit(TimerEffect.FocusCompleted(event)) }
 
+        // Determine break type
+        val settings = settingsRepository.getSettings()
         val validFocusCount = timerRepository.countValidFocusSinceLastLongBreak()
         val nextStep = cycleManager.nextAfter(
             session = completed,
             validFocusCount = validFocusCount,
-            settings = settingsRepository.getSettings(),
+            settings = settings,
         )
-        if (nextStep is TimerCycleStep.StartBreak) {
-            val breakSession = createRunningSession(
-                mode = nextStep.mode,
-                plannedDurationSec = nextStep.plannedDurationSec,
-                taskId = null,
-            )
-            timerRepository.createSession(breakSession)
-            appendLog(breakSession, OperationType.START)
-            publishState(breakSession)
-            startEngine(breakSession)
+        val breakDurationSec = when (nextStep) {
+            is TimerCycleStep.StartBreak -> nextStep.plannedDurationSec
+            else -> settings.shortBreakDurationMin * 60
         }
+        val breakMode = when (nextStep) {
+            is TimerCycleStep.StartBreak -> nextStep.mode
+            else -> TimerMode.SHORT_BREAK
+        }
+        // Create idle break session - user will manually start
+        val readySession = TimerSession(
+            sessionId = idGenerator.nextId(),
+            taskId = null,
+            mode = breakMode,
+            plannedDurationSec = breakDurationSec,
+            remainingSec = breakDurationSec,
+            status = TimerStatus.IDLE,
+            startAt = clock.elapsedRealtimeMillis(),
+            pauseAt = null,
+            completedAt = null,
+            resetAt = null,
+            invalidReason = null,
+        )
+        timerRepository.createSession(readySession)
+        publishState(readySession)
     }
 
     private suspend fun completeBreak(completed: TimerSession) {
