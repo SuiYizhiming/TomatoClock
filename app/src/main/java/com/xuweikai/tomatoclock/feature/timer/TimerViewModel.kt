@@ -397,22 +397,19 @@ class TimerViewModel(
             is TimerCycleStep.StartBreak -> nextStep.mode
             else -> TimerMode.SHORT_BREAK
         }
-        // Create idle break session - user will manually start
-        val readySession = TimerSession(
-            sessionId = idGenerator.nextId(),
-            taskId = null,
-            mode = breakMode,
-            plannedDurationSec = breakDurationSec,
-            remainingSec = breakDurationSec,
-            status = TimerStatus.IDLE,
-            startAt = clock.elapsedRealtimeMillis(),
-            pauseAt = null,
-            completedAt = null,
-            resetAt = null,
-            invalidReason = null,
-        )
-        timerRepository.createSession(readySession)
-        publishState(readySession)
+        // Create and auto-start break session (focus completion auto-transitions to running break)
+        val breakSession = stateMachine.transition(
+            current = null,
+            event = TimerEvent.Start(
+                mode = breakMode,
+                plannedDurationSec = breakDurationSec,
+                taskId = null,
+            ),
+        ) ?: return
+        timerRepository.createSession(breakSession)
+        appendLog(breakSession, OperationType.START)
+        publishState(breakSession)
+        startEngine(breakSession)
     }
 
     private suspend fun completeBreak(completed: TimerSession) {

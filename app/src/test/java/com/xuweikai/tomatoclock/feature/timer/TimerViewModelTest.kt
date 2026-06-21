@@ -184,6 +184,13 @@ class TimerViewModelTest {
             logs += log
         }
 
+        override suspend fun countValidFocusSinceLastLongBreak(): Int {
+            yield()
+            return storedSessions.value.count {
+                it.mode == TimerMode.FOCUS && it.status == TimerStatus.COMPLETED
+            }
+        }
+
         private fun activeSession(): TimerSession? {
             return storedSessions.value.firstOrNull {
                 it.status == TimerStatus.RUNNING || it.status == TimerStatus.PAUSED
