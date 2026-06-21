@@ -74,24 +74,24 @@ class SettingsViewModel(
             _uiState.update { it.copy(validationErrors = errors, saveError = null) }
             return
         }
-        saveImmediately(next)
+        saveSettings(next, showSavingState = true)
     }
 
     fun selectAlertSound(sound: String) {
         val next = _uiState.value.draftSettings.copy(alertSound = sound)
         if (SettingsValidator.isSupportedAlertSound(sound)) {
-            saveImmediately(next)
+            saveSettings(next, showSavingState = false)
         }
     }
 
     fun setVibrationEnabled(enabled: Boolean) {
         val next = _uiState.value.draftSettings.copy(vibrationEnabled = enabled)
-        saveImmediately(next)
+        saveSettings(next, showSavingState = false)
     }
 
     fun setDarkMode(mode: DarkMode) {
         val next = _uiState.value.draftSettings.copy(darkMode = mode)
-        saveImmediately(next)
+        saveSettings(next, showSavingState = false)
     }
 
     private fun updateDraft(settings: AppSettings) {
@@ -105,15 +105,19 @@ class SettingsViewModel(
         }
     }
 
-    private fun saveImmediately(settings: AppSettings) {
+    private fun saveSettings(settings: AppSettings, showSavingState: Boolean) {
         val errors = SettingsValidator.validate(settings).associateByField()
         if (errors.isNotEmpty()) {
             _uiState.update { it.copy(draftSettings = settings, validationErrors = errors, saveError = null) }
             return
         }
 
-        // Set draft and saving state synchronously to avoid button flicker.
-        _uiState.update { it.copy(draftSettings = settings, isSaving = true, saveError = null) }
+        // Only show saving state for duration saves to avoid button flicker.
+        if (showSavingState) {
+            _uiState.update { it.copy(draftSettings = settings, isSavingDurations = true, saveError = null) }
+        } else {
+            _uiState.update { it.copy(draftSettings = settings, saveError = null) }
+        }
         viewModelScope.launch {
             runCatching {
                 settingsRepository.saveSettings(settings)
@@ -121,7 +125,7 @@ class SettingsViewModel(
                 _uiState.update {
                     it.copy(
                         settings = settings,
-                        isSaving = false,
+                        isSavingDurations = false,
                         validationErrors = emptyMap(),
                         saveError = null,
                     )
@@ -129,7 +133,7 @@ class SettingsViewModel(
             }.onFailure { throwable ->
                 _uiState.update {
                     it.copy(
-                        isSaving = false,
+                        isSavingDurations = false,
                         saveError = throwable.message ?: "Failed to save settings.",
                     )
                 }

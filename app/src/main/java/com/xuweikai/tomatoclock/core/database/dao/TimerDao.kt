@@ -42,4 +42,16 @@ interface TimerDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertLog(log: TimerOperationLogEntity)
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM timer_sessions
+        WHERE mode = 'FOCUS' AND status = 'COMPLETED'
+        AND completedAt > (
+            SELECT COALESCE(MAX(completedAt), 0) FROM timer_sessions
+            WHERE mode = 'LONG_BREAK' AND status = 'COMPLETED'
+        )
+        """,
+    )
+    suspend fun countValidFocusSinceLastLongBreak(): Int
 }

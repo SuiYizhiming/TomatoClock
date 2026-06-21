@@ -116,7 +116,7 @@ fun SettingsScreen(
                     enabled = uiState.canSave,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (uiState.isSaving) "保存中…" else "保存时长")
+                    Text(if (uiState.isSavingDurations) "保存中…" else "保存时长")
                 }
                 Text(
                     text = "下一次专注周期生效",

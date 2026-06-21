@@ -33,5 +33,9 @@ class RoomTimerRepository(
     override suspend fun appendLog(log: TimerOperationLog) {
         timerDao.insertLog(log.asEntity())
     }
+
+    override suspend fun countValidFocusSinceLastLongBreak(): Int {
+        return timerDao.countValidFocusSinceLastLongBreak()
+    }
 }
 

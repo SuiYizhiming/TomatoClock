@@ -11,4 +11,5 @@ interface TimerRepository {
     suspend fun updateSession(session: TimerSession)
     suspend fun findSession(sessionId: String): TimerSession?
     suspend fun appendLog(log: TimerOperationLog)
+    suspend fun countValidFocusSinceLastLongBreak(): Int
 }

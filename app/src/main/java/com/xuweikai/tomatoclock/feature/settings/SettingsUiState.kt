@@ -7,10 +7,10 @@ data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
     val draftSettings: AppSettings = AppSettings(),
     val isLoading: Boolean = false,
-    val isSaving: Boolean = false,
+    val isSavingDurations: Boolean = false,
     val validationErrors: Map<SettingsField, String> = emptyMap(),
     val saveError: String? = null,
 ) {
     val canSave: Boolean
-        get() = validationErrors.isEmpty() && !isSaving
+        get() = validationErrors.isEmpty() && !isSavingDurations
 }
