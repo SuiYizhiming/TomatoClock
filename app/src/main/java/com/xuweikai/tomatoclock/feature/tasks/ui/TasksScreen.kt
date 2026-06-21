@@ -45,10 +45,6 @@ import androidx.compose.ui.unit.dp
 import com.xuweikai.tomatoclock.core.model.Task
 import com.xuweikai.tomatoclock.domain.task.TaskTitleValidationError
 import com.xuweikai.tomatoclock.feature.tasks.TaskUiState
-import com.xuweikai.tomatoclock.ui.theme.Danger
-import com.xuweikai.tomatoclock.ui.theme.PageBackground
-import com.xuweikai.tomatoclock.ui.theme.Success
-import com.xuweikai.tomatoclock.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,7 +101,7 @@ fun TasksScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(PageBackground),
+            .background(MaterialTheme.colorScheme.background),
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -308,7 +304,7 @@ private fun InlineTaskInput(
     onCancel: () -> Unit,
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -341,7 +337,7 @@ private fun TaskRow(
     onDelete: () -> Unit,
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp),
     ) {
         Row(
@@ -363,14 +359,14 @@ private fun TaskRow(
                     .clickable(onClick = onEdit),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                color = if (task.isCompleted) TextSecondary else MaterialTheme.colorScheme.onSurface,
+                color = if (task.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                 textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
             )
             TextButton(onClick = onFocus) {
-                Text("专注", color = Success)
+                Text("专注", color = MaterialTheme.colorScheme.secondary)
             }
             TextButton(onClick = onDelete) {
-                Text("删除", color = Danger)
+                Text("删除", color = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -405,7 +401,7 @@ private fun SectionHeader(
             style = MaterialTheme.typography.labelMedium,
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(if (expanded) "收起" else "展开", color = TextSecondary)
+        Text(if (expanded) "收起" else "展开", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -416,10 +412,10 @@ private fun EmptyTaskState(text: String) {
             .fillMaxWidth()
             .height(96.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White),
+            .background(MaterialTheme.colorScheme.surface),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = text, color = TextSecondary)
+        Text(text = text, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

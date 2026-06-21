@@ -1,6 +1,5 @@
 package com.xuweikai.tomatoclock.feature.timer.ui
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -40,9 +39,6 @@ import androidx.compose.ui.unit.sp
 import com.xuweikai.tomatoclock.core.model.TimerMode
 import com.xuweikai.tomatoclock.core.model.TimerStatus
 import com.xuweikai.tomatoclock.feature.timer.TimerUiState
-import com.xuweikai.tomatoclock.ui.theme.BreakBackground
-import com.xuweikai.tomatoclock.ui.theme.FocusBackground
-import com.xuweikai.tomatoclock.ui.theme.TomatoPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,12 +49,8 @@ fun TimerScreen(
     modifier: Modifier = Modifier,
 ) {
     var showResetConfirmation by remember { mutableStateOf(false) }
-    val isFocusMode = uiState.mode == TimerMode.FOCUS
-    val backgroundColor by animateColorAsState(
-        targetValue = if (isFocusMode) FocusBackground else BreakBackground,
-        label = "timerBackground",
-    )
-    val contentColor = if (isFocusMode) Color.White else Color(0xFF183247)
+    val backgroundColor = MaterialTheme.colorScheme.background
+    val contentColor = MaterialTheme.colorScheme.onBackground
 
     Box(
         modifier = modifier
@@ -80,7 +72,7 @@ fun TimerScreen(
             TimerProgressRing(
                 remainingSec = uiState.remainingSec,
                 plannedDurationSec = uiState.plannedDurationSec,
-                foregroundColor = if (isFocusMode) TomatoPrimary else Color(0xFF3478A6),
+                foregroundColor = MaterialTheme.colorScheme.primary,
                 trackColor = contentColor.copy(alpha = 0.14f),
             ) {
                 Text(

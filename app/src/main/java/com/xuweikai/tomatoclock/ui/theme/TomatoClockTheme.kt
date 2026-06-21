@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
+import com.xuweikai.tomatoclock.core.model.DarkMode
 
 val TomatoPrimary = Color(0xFFFF6B6B)
 val TomatoPrimaryPressed = Color(0xFFE55A5A)
@@ -63,9 +64,14 @@ private val DarkColorScheme = darkColorScheme(
 
 @Composable
 fun TomatoClockTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkMode: DarkMode = DarkMode.SYSTEM,
     content: @Composable () -> Unit,
 ) {
+    val darkTheme = when (darkMode) {
+        DarkMode.SYSTEM -> isSystemInDarkTheme()
+        DarkMode.LIGHT -> false
+        DarkMode.DARK -> true
+    }
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
     val view = LocalView.current
     if (!view.isInEditMode) {

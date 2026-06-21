@@ -7,4 +7,5 @@ data class AppSettings(
     val longBreakInterval: Int = 4,
     val alertSound: String = "classic",
     val vibrationEnabled: Boolean = true,
+    val darkMode: DarkMode = DarkMode.SYSTEM,
 )

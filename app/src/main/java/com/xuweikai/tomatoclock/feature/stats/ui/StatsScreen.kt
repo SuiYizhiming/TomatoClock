@@ -45,11 +45,6 @@ import com.xuweikai.tomatoclock.core.model.TodaySummary
 import com.xuweikai.tomatoclock.feature.stats.CheckInLevel
 import com.xuweikai.tomatoclock.feature.stats.MonthDayUiState
 import com.xuweikai.tomatoclock.feature.stats.StatsUiState
-import com.xuweikai.tomatoclock.ui.theme.PageBackground
-import com.xuweikai.tomatoclock.ui.theme.Success
-import com.xuweikai.tomatoclock.ui.theme.TextSecondary
-import com.xuweikai.tomatoclock.ui.theme.TextTertiary
-import com.xuweikai.tomatoclock.ui.theme.TomatoPrimary
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,7 +72,7 @@ fun StatsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(PageBackground),
+            .background(MaterialTheme.colorScheme.background),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -147,7 +142,7 @@ private fun TodaySummaryCard(
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = comparisonLabel,
-            color = TextSecondary,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
         )
     }
@@ -161,11 +156,11 @@ private fun SummaryMetric(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
-            color = TomatoPrimary,
+            color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleLarge,
         )
-        Text(text = label, color = TextSecondary, style = MaterialTheme.typography.labelMedium)
+        Text(text = label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -184,7 +179,7 @@ private fun WeeklyTrendCard(trend: List<DailyTrend>) {
             normalizedTrend.forEach { day ->
                 Text(
                     text = day.dateKey.shortDateLabel(),
-                    color = TextTertiary,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
@@ -195,6 +190,8 @@ private fun WeeklyTrendCard(trend: List<DailyTrend>) {
 @Composable
 private fun WeeklyBarChart(trend: List<DailyTrend>) {
     val maxTomatoes = trend.maxOfOrNull { it.tomatoCount }?.coerceAtLeast(1) ?: 1
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceVariantColor = MaterialTheme.colorScheme.surfaceVariant
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
@@ -206,7 +203,7 @@ private fun WeeklyBarChart(trend: List<DailyTrend>) {
             val ratio = day.tomatoCount.toFloat() / maxTomatoes.toFloat()
             val barHeight = (size.height * ratio).coerceAtLeast(if (day.tomatoCount > 0) 8.dp.toPx() else 2.dp.toPx())
             val left = index * (barWidth + barGap)
-            val color = if (index == trend.lastIndex) TomatoPrimary else Color(0xFFD6D6D6)
+            val color = if (index == trend.lastIndex) primaryColor else surfaceVariantColor
             drawRoundRect(
                 color = color,
                 topLeft = Offset(left, size.height - barHeight),
@@ -230,7 +227,7 @@ private fun MonthCalendarCard(
                     .height(120.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("暂无打卡记录", color = TextSecondary)
+                Text("暂无打卡记录", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             LazyVerticalGrid(
@@ -262,7 +259,7 @@ private fun DayCell(
     ) {
         Text(
             text = day.dayOfMonth.toString(),
-            color = if (day.checkInLevel == CheckInLevel.NONE) TextSecondary else Color.White,
+            color = if (day.checkInLevel == CheckInLevel.NONE) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.labelMedium,
         )
@@ -286,7 +283,7 @@ private fun StatsCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
@@ -314,9 +311,10 @@ private fun String.shortDateLabel(): String {
     return substring(5).replace("-", "/")
 }
 
+@Composable
 private fun CheckInLevel.color(): Color = when (this) {
-    CheckInLevel.NONE -> Color(0xFFF0F0F0)
-    CheckInLevel.LOW -> Success.copy(alpha = 0.46f)
-    CheckInLevel.MEDIUM -> Success.copy(alpha = 0.72f)
-    CheckInLevel.HIGH -> Success
+    CheckInLevel.NONE -> MaterialTheme.colorScheme.surfaceVariant
+    CheckInLevel.LOW -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.46f)
+    CheckInLevel.MEDIUM -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.72f)
+    CheckInLevel.HIGH -> MaterialTheme.colorScheme.secondary
 }

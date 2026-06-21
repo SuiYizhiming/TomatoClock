@@ -1,11 +1,18 @@
 package com.xuweikai.tomatoclock.app.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,11 +43,12 @@ import kotlinx.coroutines.launch
 private enum class TomatoRoute(
     val route: String,
     val label: String,
+    val icon: ImageVector,
 ) {
-    Timer("timer", "计时"),
-    Tasks("tasks", "任务"),
-    Stats("stats", "统计"),
-    Settings("settings", "设置"),
+    Timer("timer", "计时", Icons.Default.Timer),
+    Tasks("tasks", "任务", Icons.Default.CheckCircle),
+    Stats("stats", "统计", Icons.Default.BarChart),
+    Settings("settings", "设置", Icons.Default.Settings),
 }
 
 @Composable
@@ -181,6 +189,7 @@ fun TomatoClockApp(appContainer: AppContainer) {
                         }
                     },
                     onVibrationEnabledChange = settingsViewModel::setVibrationEnabled,
+                    onDarkModeChange = settingsViewModel::setDarkMode,
                 )
             }
         }
@@ -197,7 +206,7 @@ private fun TomatoBottomBar(
             NavigationBarItem(
                 selected = currentRoute == route.route,
                 onClick = { onNavigate(route) },
-                icon = { Text(route.label.take(1)) },
+                icon = { Icon(route.icon, contentDescription = route.label) },
                 label = { Text(route.label) },
             )
         }

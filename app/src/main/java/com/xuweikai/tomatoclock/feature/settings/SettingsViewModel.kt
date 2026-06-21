@@ -7,6 +7,7 @@ import com.xuweikai.tomatoclock.core.domain.settings.SettingsField
 import com.xuweikai.tomatoclock.core.domain.settings.SettingsValidationError
 import com.xuweikai.tomatoclock.core.domain.settings.SettingsValidator
 import com.xuweikai.tomatoclock.core.model.AppSettings
+import com.xuweikai.tomatoclock.core.model.DarkMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -77,9 +78,7 @@ class SettingsViewModel(
     }
 
     fun selectAlertSound(sound: String) {
-        val current = _uiState.value.draftSettings
-        val next = current.copy(alertSound = sound)
-        updateDraft(next)
+        val next = _uiState.value.draftSettings.copy(alertSound = sound)
         if (SettingsValidator.isSupportedAlertSound(sound)) {
             saveImmediately(next)
         }
@@ -87,7 +86,11 @@ class SettingsViewModel(
 
     fun setVibrationEnabled(enabled: Boolean) {
         val next = _uiState.value.draftSettings.copy(vibrationEnabled = enabled)
-        updateDraft(next)
+        saveImmediately(next)
+    }
+
+    fun setDarkMode(mode: DarkMode) {
+        val next = _uiState.value.draftSettings.copy(darkMode = mode)
         saveImmediately(next)
     }
 
@@ -105,19 +108,19 @@ class SettingsViewModel(
     private fun saveImmediately(settings: AppSettings) {
         val errors = SettingsValidator.validate(settings).associateByField()
         if (errors.isNotEmpty()) {
-            _uiState.update { it.copy(validationErrors = errors, saveError = null) }
+            _uiState.update { it.copy(draftSettings = settings, validationErrors = errors, saveError = null) }
             return
         }
 
+        // Set draft and saving state synchronously to avoid button flicker.
+        _uiState.update { it.copy(draftSettings = settings, isSaving = true, saveError = null) }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSaving = true, saveError = null) }
             runCatching {
                 settingsRepository.saveSettings(settings)
             }.onSuccess {
                 _uiState.update {
                     it.copy(
                         settings = settings,
-                        draftSettings = settings,
                         isSaving = false,
                         validationErrors = emptyMap(),
                         saveError = null,

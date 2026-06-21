@@ -50,28 +50,10 @@ class AndroidAlertManager(
         require(SettingsValidator.isSupportedAlertSound(sound)) {
             "Unsupported alert sound: $sound"
         }
-        val settings = settingsRepository.getSettings()
-        when (
-            BasicAlertStrategy.chooseDelivery(
-                AlertEnvironment(
-                    isSilent = isSilent(),
-                    vibrationEnabled = settings.vibrationEnabled,
-                ),
-            )
-        ) {
-            AlertDelivery.SOUND_ONLY,
-            AlertDelivery.SOUND_AND_VIBRATION -> {
-                val played = playTone(sound)
-                if (!played) {
-                    showToast("Alert preview")
-                }
-            }
-            AlertDelivery.VIBRATION_ONLY -> {
-                if (!vibrate()) {
-                    showToast("Alert preview")
-                }
-            }
-            AlertDelivery.POPUP_ONLY -> showToast("Alert preview")
+        // Always play tone for preview, regardless of silent/vibration settings.
+        val played = playTone(sound)
+        if (!played) {
+            showToast("Alert preview")
         }
     }
 

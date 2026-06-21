@@ -11,4 +11,5 @@ object AppSettingsKeys {
     val LONG_BREAK_INTERVAL = intPreferencesKey("longBreakInterval")
     val ALERT_SOUND = stringPreferencesKey("alertSound")
     val VIBRATION_ENABLED = booleanPreferencesKey("vibrationEnabled")
+    val DARK_MODE = stringPreferencesKey("darkMode")
 }
